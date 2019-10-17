@@ -12,7 +12,7 @@ import UIKit
 class ViewController: UIViewController
 {
     
-    let halfPi = CGFloat(M_PI_2)
+    let halfPi = CGFloat.pi / 2
     let imageView = UIImageView()
     let compositeFilter = CIFilter(name: "CISourceOverCompositing")!
     
@@ -22,25 +22,25 @@ class ViewController: UIViewController
     lazy var imageAccumulator: CIImageAccumulator =
     {
         [unowned self] in
-        return CIImageAccumulator(extent: self.view.frame, format: kCIFormatARGB8)
-        }()
+        return CIImageAccumulator(extent: self.view.frame, format: .ARGB8)!
+    }()
     
     override func viewDidLoad()
     {
         super.viewDidLoad()
         
         slider.maximumValue = 1
-        slider.addTarget(self, action: "sliderChangeHandler", forControlEvents: .ValueChanged)
+        slider.addTarget(self, action: #selector(sliderChangeHandler), for: .valueChanged)
         
         view.addSubview(imageView)
         view.addSubview(slider)
         
-        view.backgroundColor =  UIColor.blackColor()
+        view.backgroundColor =  .black
         
         sliderChangeHandler()
     }
     
-    func sliderChangeHandler()
+    @objc func sliderChangeHandler()
     {
         hue = CGFloat(slider.value)
         
@@ -54,9 +54,9 @@ class ViewController: UIViewController
             return UIColor(hue: hue, saturation: 1, brightness: 1, alpha: 1)
     }
     
-    override func motionBegan(motion: UIEventSubtype, withEvent event: UIEvent?)
+    override func motionBegan(_ motion: UIEvent.EventSubtype, with event: UIEvent?)
     {
-        if motion == UIEventSubtype.MotionShake
+        if motion == .motionShake
         {
             imageAccumulator.clear()
             imageAccumulator.setImage(CIImage(color: CIColor(string: "00000000")))
@@ -65,70 +65,65 @@ class ViewController: UIViewController
         }
     }
     
-    override func touchesMoved(touches: Set<UITouch>, withEvent event: UIEvent?)
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?)
     {
-        guard let
-            touch = touches.first,
-            coalescedTouces = event?.coalescedTouchesForTouch(touch) where
-            touch.type == UITouchType.Stylus else
+        guard let touch = touches.first,
+            let coalescedTouces = event?.coalescedTouches(for: touch),
+            touch.type == .stylus else
         {
             return
         }
         
         UIGraphicsBeginImageContext(view.frame.size)
         
-        let cgContext = UIGraphicsGetCurrentContext()
+        let cgContext = UIGraphicsGetCurrentContext()!
         
-        CGContextSetLineWidth(cgContext, 1)
+        cgContext.setLineWidth(1)
         
-        CGContextSetStrokeColorWithColor(cgContext, color.colorWithAlphaComponent(0.025).CGColor)
+        cgContext.setStrokeColor(self.color.withAlphaComponent(0.025).cgColor)
         
         for coalescedTouch in coalescedTouces
         {
-            let touchLocation = coalescedTouch.locationInView(view)
+            let touchLocation = coalescedTouch.location(in: view)
             
             let normalisedAlititudeAngle =  (halfPi - touch.altitudeAngle) / halfPi
-            let dx = coalescedTouch.azimuthUnitVectorInView(view).dx * 20 * normalisedAlititudeAngle
-            let dy = coalescedTouch.azimuthUnitVectorInView(view).dy * 20 * normalisedAlititudeAngle
+            let dx = coalescedTouch.azimuthUnitVector(in: view).dx * 20 * normalisedAlititudeAngle
+            let dy = coalescedTouch.azimuthUnitVector(in: view).dy * 20 * normalisedAlititudeAngle
             
             let count = 10 + Int((coalescedTouch.force / coalescedTouch.maximumPossibleForce) * 100)
             
             for _ in 0 ... count
             {
-                let randomAngle = drand48() * (M_PI * 2)
+                let randomAngle = drand48() * .pi * 2
                 
-    let innerRandomRadius = drand48() * 20
-    let innerRandomX = CGFloat(sin(randomAngle) * innerRandomRadius)
-    let innerRandomY = CGFloat(cos(randomAngle) * innerRandomRadius)
-                
-    let outerRandomRadius = innerRandomRadius + drand48() * 40 * Double(normalisedAlititudeAngle)
-    let outerRandomX = CGFloat(sin(randomAngle) * outerRandomRadius) - dx
-    let outerRandomY = CGFloat(cos(randomAngle) * outerRandomRadius) - dy
-                
-    CGContextMoveToPoint(cgContext,
-        touchLocation.x + innerRandomX,
-        touchLocation.y + innerRandomY)
+                let innerRandomRadius = drand48() * 20
+                let innerRandomX = CGFloat(sin(randomAngle) * innerRandomRadius)
+                let innerRandomY = CGFloat(cos(randomAngle) * innerRandomRadius)
+                            
+                let outerRandomRadius = innerRandomRadius + drand48() * 40 * Double(normalisedAlititudeAngle)
+                let outerRandomX = CGFloat(sin(randomAngle) * outerRandomRadius) - dx
+                let outerRandomY = CGFloat(cos(randomAngle) * outerRandomRadius) - dy
+
+                cgContext.move(to: CGPoint(x: touchLocation.x + innerRandomX, y: touchLocation.y + innerRandomY))
     
-    CGContextAddLineToPoint(cgContext,
-        touchLocation.x + outerRandomX,
-        touchLocation.y + outerRandomY)
+                cgContext.addLine(to: CGPoint(x: touchLocation.x + outerRandomX, y: touchLocation.y + outerRandomY))
     
-    CGContextStrokePath(cgContext)
+                cgContext.strokePath()
             }
         }
         
-    let drawnImage = UIGraphicsGetImageFromCurrentImageContext()
-    
-    UIGraphicsEndImageContext()
-    
-    compositeFilter.setValue(CIImage(image: drawnImage),
-        forKey: kCIInputImageKey)
-    compositeFilter.setValue(imageAccumulator.image(),
-        forKey: kCIInputBackgroundImageKey)
-    
-    imageAccumulator.setImage(compositeFilter.valueForKey(kCIOutputImageKey) as! CIImage)
-    
-    imageView.image = UIImage(CIImage: imageAccumulator.image())
+        let drawnImage = UIGraphicsGetImageFromCurrentImageContext()
+        
+        UIGraphicsEndImageContext()
+        
+        guard let image = drawnImage else { return }
+
+        compositeFilter.setValue(CIImage(image: image), forKey: kCIInputImageKey)
+        compositeFilter.setValue(imageAccumulator.image(), forKey: kCIInputBackgroundImageKey)
+        
+        imageAccumulator.setImage(compositeFilter.value(forKey: kCIOutputImageKey) as! CIImage)
+        
+        imageView.image = UIImage(ciImage: imageAccumulator.image())
     }
     
     override func viewDidLayoutSubviews()
@@ -136,8 +131,8 @@ class ViewController: UIViewController
         imageView.frame = view.bounds
         
         slider.frame = CGRect(x: 0,
-            y: view.frame.height - slider.intrinsicContentSize().height - 20,
-            width: view.frame.width,
-            height: slider.intrinsicContentSize().height).insetBy(dx: 20, dy: 0)
+                              y: view.frame.height - slider.intrinsicContentSize.height - 20,
+                              width: view.frame.width,
+                              height: slider.intrinsicContentSize.height).insetBy(dx: 20, dy: 0)
     }
 }
